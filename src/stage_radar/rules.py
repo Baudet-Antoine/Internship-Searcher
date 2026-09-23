@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from datetime import date
 
 from stage_radar.config import Country
-from stage_radar.normalize import normalize_title
+from stage_radar.normalize import normalize_text, normalize_title
 from stage_radar.visa import apply_deadline
+
+DESCRIPTION_SCAN_CHARS = 1500
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,10 @@ def evaluate(offer: dict, rules: Rules, countries: dict[str, Country], today: da
     if not any(p.search(title) for p in rules.data):
         return _reject("title_data", "titre sans terme data")
     if not any(p.search(title) for p in rules.internship):
-        return _reject("title_internship", "titre sans terme stage")
+        # Certaines sources (ex. Arbeitsagentur) ne mettent pas « stage » dans le titre.
+        intro = normalize_text((offer.get("description") or "")[:DESCRIPTION_SCAN_CHARS])
+        if not any(p.search(intro) for p in rules.internship):
+            return _reject("title_internship", "titre sans terme stage")
     for pattern in rules.blacklist:
         match = pattern.search(title)
         if match:

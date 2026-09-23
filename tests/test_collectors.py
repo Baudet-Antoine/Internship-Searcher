@@ -84,7 +84,7 @@ def test_adzuna_without_keys_raises_auth_error():
 
 @respx.mock
 def test_arbeitsagentur_fetches_full_description():
-    respx.get(f"{BA_BASE}/pc/v4/app/jobs").mock(
+    respx.get(f"{BA_BASE}/pc/v6/jobs").mock(
         return_value=httpx.Response(200, json=load("ba_search.json"))
     )
     code = base64.b64encode(b"10001-1000123456-S").decode()
@@ -95,14 +95,15 @@ def test_arbeitsagentur_fetches_full_description():
     [offer] = list(collector.fetch(date.today() - timedelta(days=3)))
     assert offer.source_id == "10001-1000123456-S"
     assert offer.country == "DE" and offer.city == "Berlin" and offer.company == "Zalando SE"
-    assert offer.description == "6 Monate Pflichtpraktikum ab Januar 2027."
+    assert offer.description == ("Eintrittsdatum (start date): 2027-02-01\n"
+                                 "6 Monate Pflichtpraktikum ab Januar 2027.")
     assert offer.description_is_full is True
     assert offer.url.endswith("10001-1000123456-S")
 
 
 @respx.mock
 def test_arbeitsagentur_detail_failure_falls_back_to_snippet():
-    respx.get(f"{BA_BASE}/pc/v4/app/jobs").mock(
+    respx.get(f"{BA_BASE}/pc/v6/jobs").mock(
         return_value=httpx.Response(200, json=load("ba_search.json"))
     )
     respx.get(url__regex=rf"{BA_BASE}/pc/v4/jobdetails/.*").mock(
@@ -110,7 +111,9 @@ def test_arbeitsagentur_detail_failure_falls_back_to_snippet():
     )
     collector = ArbeitsagenturCollector(queries=["Data Science"], max_pages=1, page_size=50)
     [offer] = list(collector.fetch(date.today()))
-    assert offer.description_is_full is False and offer.description == "Praktikant/in"
+    assert offer.description_is_full is False
+    assert offer.description.endswith("Data Scientist")
+    assert offer.posted_at.day == 20
 
 
 def test_build_collectors_respects_enabled_flags():

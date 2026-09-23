@@ -40,4 +40,7 @@ def test_render_contains_items_and_escapes_html():
 def test_render_empty_day():
     d = Digest("jeudi 15 octobre", 0, [], 0, [], [], [], {})
     _, html, text = render(d)
-    assert "Aucune nouvelle offre" in html and "Aucune nouvelle offre" in text
+    assert "le pipeline tourne bien" in html and "le pipeline tourne bien" in text
+    d.errors = {"adzuna": "HTTP 401"}
+    _, html, text = render(d)
+    assert "Aucune nouvelle offre retenue" in text and "tourne bien" not in text

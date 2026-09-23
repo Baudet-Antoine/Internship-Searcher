@@ -11,8 +11,9 @@ COUNTRIES = load_countries()
 TODAY = date(2026, 10, 1)
 
 
-def offer(title="Data Science Intern", country="DE", posted=datetime(2026, 9, 28, tzinfo=UTC)):
-    return {"title": title, "country": country, "posted_at": posted}
+def offer(title="Data Science Intern", country="DE", posted=datetime(2026, 9, 28, tzinfo=UTC),
+          description=""):
+    return {"title": title, "country": country, "posted_at": posted, "description": description}
 
 
 def test_apply_deadline():
@@ -43,6 +44,13 @@ def test_title_rules():
     assert evaluate(offer("HTML Intern"), RULES, COUNTRIES, TODAY).code == "title_data"
     verdict = evaluate(offer("Summer Intern Data Science"), RULES, COUNTRIES, TODAY)
     assert verdict.code == "title_blacklist" and "summer" in verdict.reason
+
+
+def test_internship_term_in_description_is_enough():
+    title = "Data Science & Analytics (m/w/d) – langfristig"
+    assert evaluate(offer(title), RULES, COUNTRIES, TODAY).code == "title_internship"
+    ok = offer(title, description="Pflichtpraktikum für 6 Monate im Team Data")
+    assert evaluate(ok, RULES, COUNTRIES, TODAY).passed
 
 
 def test_too_old():

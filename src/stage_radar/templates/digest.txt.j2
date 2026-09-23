@@ -18,7 +18,7 @@ Stages DS — {{ d.date_label }} · {{ d.new_count }} nouvelle(s) offre(s)
    {% endfor %}
 {% endfor %}
 {% if d.extra_count %}+ {{ d.extra_count }} autres offres dans Supabase (vue v_inbox).
-{% endif %}{% if not d.items %}Aucune nouvelle offre aujourd'hui — le pipeline tourne bien.
+{% endif %}{% if not d.items %}Aucune nouvelle offre retenue aujourd'hui{% if not d.errors %} — le pipeline tourne bien{% endif %}.
 {% endif %}
 {% if d.audit %}🔍 Audit : rejets pris au hasard
 {% for a in d.audit %}  ✗ {{ a.title }} — {{ a.company }} · {{ a.reason }}

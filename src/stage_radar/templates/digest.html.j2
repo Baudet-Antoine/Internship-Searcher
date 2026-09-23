@@ -33,7 +33,7 @@
   </div>
   {% endfor %}
   {% if d.extra_count %}<p style="font-size:14px">+ {{ d.extra_count }} autres offres dans Supabase (vue <code>v_inbox</code>).</p>{% endif %}
-  {% if not d.items %}<p>Aucune nouvelle offre aujourd'hui — le pipeline tourne bien.</p>{% endif %}
+  {% if not d.items %}<p>Aucune nouvelle offre retenue aujourd'hui{% if not d.errors %} — le pipeline tourne bien{% endif %}.</p>{% endif %}
   {% if d.audit %}
   <div style="font-size:13px;color:#5f5f5a;margin-top:20px">
     <strong>🔍 Audit : rejets pris au hasard</strong>

@@ -1,4 +1,7 @@
-"""Collecteur Bundesagentur für Arbeit (https://jobsuche.api.bund.dev), filtre Praktikum."""
+"""Collecteur Bundesagentur für Arbeit (https://jobsuche.api.bund.dev), filtre Praktikum.
+
+Recherche : /pc/v6/jobs (v4 renvoie 403). Détail : /pc/v4/jobdetails/{base64(referenznummer)}.
+"""
 
 from __future__ import annotations
 
@@ -13,11 +16,11 @@ from stage_radar.models import RawOffer
 from stage_radar.normalize import parse_dt, strip_html
 
 BA_BASE = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service"
-SEARCH_PATH = "/pc/v4/app/jobs"
+SEARCH_PATH = "/pc/v6/jobs"
 DETAIL_PATH = "/pc/v4/jobdetails/{code}"
 HEADERS = {"X-API-Key": "jobboerse-jobsuche"}
 PRAKTIKUM_TRAINEE = 34
-COUNTRIES = {"deutschland": "DE", "osterreich": "AT", "österreich": "AT", "schweiz": "CH",
+COUNTRIES = {"deutschland": "DE", "österreich": "AT", "osterreich": "AT", "schweiz": "CH",
              "niederlande": "NL", "belgien": "BE", "luxemburg": "LU", "frankreich": "FR"}
 
 
@@ -40,9 +43,9 @@ class ArbeitsagenturCollector:
                             "veroeffentlichtseit": days, "page": page, "size": self.page_size},
                     headers=HEADERS,
                 )
-                items = data.get("stellenangebote") or []
+                items = data.get("ergebnisliste") or []
                 for item in items:
-                    yield self.to_raw(item, self._description(item.get("refnr")))
+                    yield self.to_raw(item, self._description(item.get("referenznummer")))
                 if len(items) < self.page_size:
                     break
 
@@ -60,21 +63,25 @@ class ArbeitsagenturCollector:
 
     @staticmethod
     def to_raw(item: dict, description: str | None) -> RawOffer:
-        place = item.get("arbeitsort") or {}
-        refnr = item["refnr"]
-        land = (place.get("land") or "").strip().lower()
+        places = item.get("stellenlokationen") or [{}]
+        address = places[0].get("adresse") or {}
+        refnr = item["referenznummer"]
+        land = (address.get("land") or "").strip().lower()
+        start = (item.get("eintrittszeitraum") or {}).get("von")
+        body = description or strip_html(item.get("hauptberuf"))
+        if start:
+            body = f"Eintrittsdatum (start date): {start}\n{body}"
         return RawOffer(
             source="arbeitsagentur",
             source_id=refnr,
-            url=item.get("externeUrl")
-            or f"https://www.arbeitsagentur.de/jobsuche/jobdetail/{refnr}",
-            title=strip_html(item.get("titel") or item.get("beruf")),
-            company=item.get("arbeitgeber"),
-            location_raw=", ".join(v for v in (place.get("ort"), place.get("land")) if v),
+            url=f"https://www.arbeitsagentur.de/jobsuche/jobdetail/{refnr}",
+            title=strip_html(item.get("stellenangebotsTitel") or item.get("hauptberuf")),
+            company=item.get("firma"),
+            location_raw=", ".join(v for v in (address.get("ort"), address.get("land")) if v),
             country=COUNTRIES.get(land),
-            city=place.get("ort"),
-            description=description or strip_html(item.get("beruf")),
+            city=address.get("ort"),
+            description=body,
             description_is_full=description is not None,
-            posted_at=parse_dt(item.get("aktuelleVeroeffentlichungsdatum")),
+            posted_at=parse_dt((item.get("veroeffentlichungszeitraum") or {}).get("von")),
             raw=item,
         )
