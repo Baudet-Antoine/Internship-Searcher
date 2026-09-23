@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -72,8 +73,9 @@ def build_components(settings: Settings, env: Mapping[str, str],
                      dry_run_dir: Path | None = None) -> Components:
     llm = None
     if env.get("GEMINI_API_KEY"):
-        llm = GeminiClient(env["GEMINI_API_KEY"], settings.decisions.get("gemini_model",
-                                                                         "gemini-3.6-flash"),
+        models = (settings.decisions.get("gemini_models")
+                  or [settings.decisions.get("gemini_model", "gemini-3.5-flash-lite")])
+        llm = GeminiClient(env["GEMINI_API_KEY"], models,
                            min_interval_s=float(settings.decisions.get("gemini_min_interval_s",
                                                                        0)))
     engine: DecisionEngine | None
@@ -108,6 +110,7 @@ def run_pipeline(conn: psycopg.Connection, comps: Components, settings: Settings
     version = engine_version(comps.engine.name if comps.engine else "none", settings.decisions)
     thresholds = (settings.decisions.get("reject_threshold", 0.85),
                   settings.decisions.get("uncertain_below", 0.6))
+    rates = functools.cache(comps.rates_loader)  # un seul appel au service de change par run
 
     steps: dict[str, Callable[[], None]] = {
         "collect": lambda: run_collect(conn, comps.collectors, since, report),
@@ -115,11 +118,11 @@ def run_pipeline(conn: psycopg.Connection, comps: Components, settings: Settings
                                            report),
         "classify": lambda: (
             run_classify(conn, comps.engine, settings.questions, settings.profile, thresholds,
-                         version, report)
+                         version, report, rates=rates())
             if comps.engine else report.error("classify", MISSING_GEMINI)
         ),
         "enrich": lambda: (
-            run_enrich(conn, comps.llm, comps.rates_loader(), report)
+            run_enrich(conn, comps.llm, rates(), report)
             if comps.llm else report.error("enrich", MISSING_GEMINI)
         ),
         "notify": lambda: run_notify(

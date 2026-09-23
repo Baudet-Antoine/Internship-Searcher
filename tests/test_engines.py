@@ -1,4 +1,5 @@
 import json
+import logging
 
 import httpx
 import pytest
@@ -118,6 +119,58 @@ def test_gemini_quota_error_carries_api_message():
     client = GeminiClient("key", "m", sleep=lambda s: None)
     with pytest.raises(GeminiQuotaError, match="requests per day"):
         client.generate_json("sys", "prompt", {})
+
+
+@respx.mock
+def test_gemini_client_falls_back_to_next_model_when_quota_is_exhausted(caplog):
+    caplog.set_level(logging.INFO, logger="stage_radar")
+    quota = {"error": {"code": 429, "message": "Quota exceeded"}}
+    first = respx.post(GEMINI_URL.format(model="lite-a")).mock(
+        return_value=httpx.Response(429, json=quota))
+    second = respx.post(GEMINI_URL.format(model="lite-b")).mock(
+        return_value=gemini_response({"ok": True}))
+    client = GeminiClient("key", ["lite-a", "lite-b"], sleep=lambda s: None)
+    assert client.generate_json("sys", "p", {}) == {"ok": True}
+    assert client.generate_json("sys", "p", {}) == {"ok": True}  # reste sur lite-b
+    assert first.call_count == 3 and second.call_count == 2
+    assert any("bascule sur lite-b" in m for m in caplog.messages)
+
+
+@respx.mock
+def test_gemini_client_falls_back_when_model_is_unknown():
+    missing = {"error": {"code": 404, "message": "models/lite-a is not found"}}
+    respx.post(GEMINI_URL.format(model="lite-a")).mock(
+        return_value=httpx.Response(404, json=missing))
+    respx.post(GEMINI_URL.format(model="lite-b")).mock(return_value=gemini_response({"a": 1}))
+    client = GeminiClient("key", ["lite-a", "lite-b"], sleep=lambda s: None)
+    assert client.generate_json("sys", "p", {}) == {"a": 1}
+
+
+@respx.mock
+def test_gemini_client_raises_when_every_model_is_exhausted():
+    quota = {"error": {"code": 429, "message": "Quota exceeded"}}
+    respx.post(url__regex=r".*models/lite-[ab]:generateContent").mock(
+        return_value=httpx.Response(429, json=quota))
+    client = GeminiClient("key", ["lite-a", "lite-b"], sleep=lambda s: None)
+    with pytest.raises(GeminiQuotaError, match="lite-b"):
+        client.generate_json("sys", "p", {})
+
+
+@respx.mock
+def test_gemini_engine_classify_and_extract_in_one_call():
+    payload = {
+        "decisions": {q.id: {"answer": q.answers[0], "confidence": "high"} for q in QUESTIONS},
+        "extraction": {"salary_amount": 1500, "salary_currency": "EUR", "salary_period": "month",
+                       "summary_fr": "Mission RAG.", "key_requirements": ["Python"]},
+    }
+    route = respx.post(GEMINI_URL.format(model="m")).mock(return_value=gemini_response(payload))
+    engine = GeminiEngine(GeminiClient("key", "m", sleep=lambda s: None))
+    decisions, extraction = engine.classify_and_extract("offer", "profile", QUESTIONS)
+    assert route.call_count == 1
+    assert decisions["is_internship_convention"] == Decision("yes", 0.9)
+    assert extraction.salary_amount == 1500 and extraction.summary_fr == "Mission RAG."
+    schema = json.loads(route.calls[0].request.content)["generationConfig"]["responseSchema"]
+    assert set(schema["properties"]) == {"decisions", "extraction"}
 
 
 @respx.mock

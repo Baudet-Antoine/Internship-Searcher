@@ -1,5 +1,7 @@
 engine: gemini
-gemini_model: gemini-3.6-flash
+# Palier gratuit (sept. 2026) : Flash = 20 req/jour, Flash Lite = 500 req/jour et 15 req/min.
+# Quotas séparés par modèle : on bascule sur le suivant quand le quota du jour est épuisé.
+gemini_models: [gemini-3.5-flash-lite, gemini-3.1-flash-lite]
 gemini_min_interval_s: 4.5
 reject_threshold: 0.85
 uncertain_below: 0.6

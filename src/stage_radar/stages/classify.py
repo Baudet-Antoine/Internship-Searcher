@@ -1,4 +1,9 @@
-"""Étape classify : prefiltered → classified | rejected, via un DecisionEngine."""
+"""Étape classify : prefiltered → classified | rejected, via un DecisionEngine.
+
+Si le moteur sait aussi extraire (méthode classify_and_extract, ex. Gemini), un seul appel
+par offre suffit : l'offre retenue passe directement à enriched. Le facteur limitant du
+palier gratuit est le nombre de requêtes, pas les tokens.
+"""
 
 from __future__ import annotations
 
@@ -7,21 +12,12 @@ from dataclasses import dataclass, field
 import psycopg
 
 from stage_radar import db
-from stage_radar.collectors.base import SourceAuthError, redact
+from stage_radar.collectors.base import redact
 from stage_radar.engines.base import Decision, DecisionEngine, Question, offer_text
-from stage_radar.engines.gemini import GeminiQuotaError, GeminiRequestError
+from stage_radar.extraction import finalize
 from stage_radar.models import OfferStatus, RunReport
-from stage_radar.progress import Progress, log
-
-# Erreurs qui touchent toutes les offres (clé, quota, modèle, requête) : on s'arrête tout de suite.
-FATAL_ERRORS = (GeminiQuotaError, GeminiRequestError, SourceAuthError)
-# Au-delà, une erreur « par offre » est en réalité systématique : on s'arrête aussi.
-MAX_CONSECUTIVE_ERRORS = 3
-
-
-def stop_stage(stage: str, remaining: int, reason: str) -> None:
-    log.error("%s : %s", stage, reason)
-    log.warning("%s : arrêt, %d offre(s) reprise(s) au prochain passage", stage, remaining)
+from stage_radar.progress import Progress
+from stage_radar.stages.common import FATAL_ERRORS, MAX_CONSECUTIVE_ERRORS, stop_stage
 
 
 @dataclass
@@ -52,15 +48,20 @@ def apply_zones(questions: list[Question], decisions: dict[str, Decision],
 
 def run_classify(conn: psycopg.Connection, engine: DecisionEngine, questions: list[Question],
                  profile: str, thresholds: tuple[float, float], version: str,
-                 report: RunReport) -> None:
+                 report: RunReport, rates: dict[str, float] | None = None) -> None:
     reject_threshold, uncertain_below = thresholds
+    combined = getattr(engine, "classify_and_extract", None) if rates is not None else None
     offers = db.fetch_offers(conn, [OfferStatus.PREFILTERED])
     progress = Progress("classify", total=len(offers))
     passed = consecutive_errors = 0
     for index, offer in enumerate(offers):
         title = offer["title"][:60]
         try:
-            decisions = engine.classify(offer_text(offer), profile, questions)
+            if combined:
+                decisions, extraction = combined(offer_text(offer), profile, questions)
+            else:
+                decisions, extraction = engine.classify(offer_text(offer), profile,
+                                                        questions), None
         except FATAL_ERRORS as exc:
             report.error("classify", redact(str(exc)))
             stop_stage("classify", len(offers) - index, redact(str(exc)))
@@ -87,6 +88,11 @@ def run_classify(conn: psycopg.Connection, engine: DecisionEngine, questions: li
         else:
             db.update_offer(conn, offer["id"], status=OfferStatus.CLASSIFIED, decisions=payload,
                             flags=outcome.flags, engine_version=version)
+            if extraction is not None:
+                extracted, summary = finalize(extraction, offer["description"], rates or {})
+                db.update_offer(conn, offer["id"], status=OfferStatus.ENRICHED,
+                                extracted=extracted, summary=summary,
+                                city=offer["city"] or extracted["city"])
             report.count("classify", "passed")
             passed += 1
             verdict = "retenue" + (" (à vérifier)" if outcome.flags else "")

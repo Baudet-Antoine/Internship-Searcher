@@ -8,8 +8,9 @@ gratuitement et sans serveur sur GitHub Actions.
 GitHub Actions (cron quotidien)
   ├─ collect     Adzuna (~13 pays) · Bundesagentur für Arbeit (DE)
   ├─ prefilter   règles déterministes : pays, titre, fraîcheur, fenêtre visa
-  ├─ classify    questions typées (Gemini, puis Laya en local) + seuils de probabilité
-  ├─ enrich      salaire, dates, résumé (Gemini, sortie JSON contrainte par schéma)
+  ├─ classify    questions typées + seuils de probabilité ; avec Gemini, extraction
+  │              (salaire, dates, résumé) dans le même appel : 1 requête par offre
+  ├─ enrich      extraction seule, pour les moteurs qui ne font que décider (Laya, v1.1)
   └─ notify      score 0-100, digest email (Resend)
           │
           ▼
@@ -28,7 +29,7 @@ Conception détaillée : [`docs/superpowers/specs/2026-09-23-stage-radar-design.
 
 1. **Supabase** : créer un projet gratuit, puis *Project Settings → Database → Connection string → Session pooler*. Copier l'URI : c'est `DATABASE_URL`. Le pooler est nécessaire, car GitHub Actions n'a pas d'IPv6.
 2. **Adzuna** : créer un compte sur <https://developer.adzuna.com> pour obtenir `ADZUNA_APP_ID` et `ADZUNA_APP_KEY`.
-3. **Gemini** : générer une clé sur <https://aistudio.google.com/apikey> (`GEMINI_API_KEY`, palier gratuit).
+3. **Gemini** : générer une clé sur <https://aistudio.google.com/apikey> (`GEMINI_API_KEY`, palier gratuit). Sur le palier gratuit, les modèles Flash sont limités à ~20 requêtes par jour, contre 500 pour les Flash Lite. `config/decisions.yaml` liste donc deux modèles Flash Lite, avec bascule automatique quand le quota de l'un est épuisé. Tes limites réelles sont visibles sur <https://aistudio.google.com/rate-limit>.
 4. **Resend** : créer un compte sur <https://resend.com> et une clé API (`RESEND_API_KEY`). Sans domaine vérifié, les emails partent de `onboarding@resend.dev` et ne peuvent aller **qu'à l'adresse du compte Resend**, donc `DIGEST_TO` doit être cette adresse.
 5. **GitHub** : *Settings → Secrets and variables → Actions*, ajouter `DATABASE_URL`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `DIGEST_TO`.
 6. Onglet *Actions → daily → Run workflow* pour le premier passage, qui récupère 30 jours d'offres. Ensuite le workflow tourne chaque jour vers 7 h (heure de Paris).
