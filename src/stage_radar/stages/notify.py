@@ -27,7 +27,7 @@ from stage_radar.visa import apply_deadline
 
 BADGE_ICON = {"profit": "🟢", "even": "🟡", "deficit": "🔴", "unknown": "⚪"}
 LABELS = {"onsite": "sur site", "hybrid": "hybride", "remote": "full remote",
-          "6plus": "6 mois +", "dec_mar": "déc.-mars"}
+          "6to9": "6-9 mois", "dec_mar": "déc.-mars"}
 SOURCE_PRIORITY = {"greenhouse": 0, "lever": 0, "ashby": 0}
 
 

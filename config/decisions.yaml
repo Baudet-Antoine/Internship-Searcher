@@ -17,9 +17,9 @@ questions:
   - id: duration
     label: durée
     kind: choice
-    prompt: "What is the internship duration? lt4 = under 4 months, 4to5 = 4 to 5 months, 6plus = 6 months or more, unspecified = not stated."
-    choices: ["lt4", "4to5", "6plus", "unspecified"]
-    reject_answers: ["lt4", "4to5"]
+    prompt: "What is the internship duration? lt4 = under 4 months, 4to5 = 4 to 5 months, 6to9 = 6 to 9 months, gt9 = more than 9 months (e.g. a 12-month placement), unspecified = not stated. Trust the description over the title."
+    choices: ["lt4", "4to5", "6to9", "gt9", "unspecified"]
+    reject_answers: ["lt4", "4to5", "gt9"]
     flag_answers: ["unspecified"]
     flag_text: "durée non précisée"
   - id: start

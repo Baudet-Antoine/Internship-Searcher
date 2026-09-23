@@ -23,8 +23,19 @@ Q = {q.id: q for q in QUESTIONS}
 def test_load_questions_answers():
     assert Q["is_internship_convention"].answers == ("yes", "no")
     assert Q["profile_fit"].answers == ("1", "2", "3", "4", "5")
-    assert Q["duration"].reject_answers == ("lt4", "4to5")
+    assert Q["duration"].reject_answers == ("lt4", "4to5", "gt9")
     assert Q["profile_fit"].include_profile is True
+
+
+def test_duration_rejects_placements_longer_than_9_months():
+    # Démarrage au plus tard en mars 2027 et fin au plus tard en septembre 2027.
+    assert Q["duration"].answers == ("lt4", "4to5", "6to9", "gt9", "unspecified")
+    base = FakeEngine().classify("t", "p", QUESTIONS)
+    twelve_months = {**base, "duration": Decision("gt9", 0.9)}
+    out = apply_zones(QUESTIONS, twelve_months, 0.85, 0.6)
+    assert out.rejected and out.code == "duration"
+    assert not apply_zones(QUESTIONS, {**base, "duration": Decision("6to9", 0.9)},
+                           0.85, 0.6).rejected
 
 
 def test_engine_version_changes_with_config():
