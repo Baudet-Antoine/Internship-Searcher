@@ -7,7 +7,13 @@ import respx
 from stage_radar.config import load_yaml
 from stage_radar.engines.base import Decision, engine_version, load_questions, offer_text
 from stage_radar.engines.fake import FakeEngine
-from stage_radar.engines.gemini import GEMINI_URL, GeminiClient, GeminiEngine, GeminiQuotaError
+from stage_radar.engines.gemini import (
+    GEMINI_URL,
+    GeminiClient,
+    GeminiEngine,
+    GeminiQuotaError,
+    GeminiRequestError,
+)
 from stage_radar.stages.classify import apply_zones
 
 QUESTIONS = load_questions(load_yaml("decisions.yaml"))
@@ -80,6 +86,27 @@ def test_gemini_client_quota_error_after_retries():
     with pytest.raises(GeminiQuotaError):
         client.generate_json("sys", "prompt", {})
     assert len(sleeps) == 2
+
+
+@respx.mock
+def test_gemini_client_client_error_is_permanent_and_explained():
+    body = {"error": {"code": 404, "message": "models/m is not found for API version v1beta"}}
+    route = respx.post(GEMINI_URL.format(model="m")).mock(
+        return_value=httpx.Response(404, json=body)
+    )
+    client = GeminiClient("key", "m", sleep=lambda s: None)
+    with pytest.raises(GeminiRequestError, match="HTTP 404.*models/m is not found"):
+        client.generate_json("sys", "prompt", {})
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_gemini_quota_error_carries_api_message():
+    body = {"error": {"code": 429, "message": "Quota exceeded: requests per day"}}
+    respx.post(GEMINI_URL.format(model="m")).mock(return_value=httpx.Response(429, json=body))
+    client = GeminiClient("key", "m", sleep=lambda s: None)
+    with pytest.raises(GeminiQuotaError, match="requests per day"):
+        client.generate_json("sys", "prompt", {})
 
 
 @respx.mock

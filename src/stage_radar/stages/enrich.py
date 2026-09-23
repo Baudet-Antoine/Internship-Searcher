@@ -9,12 +9,12 @@ import psycopg
 from pydantic import BaseModel
 
 from stage_radar import db
-from stage_radar.collectors.base import SourceAuthError, redact
+from stage_radar.collectors.base import redact
 from stage_radar.engines.base import offer_text
-from stage_radar.engines.gemini import GeminiQuotaError
 from stage_radar.models import OfferStatus, RunReport
-from stage_radar.progress import Progress, log
+from stage_radar.progress import Progress
 from stage_radar.salary import find_salary, plausible, to_monthly_eur
+from stage_radar.stages.classify import FATAL_ERRORS, MAX_CONSECUTIVE_ERRORS, stop_stage
 
 START_MIN, START_MAX = "2026-10", "2027-09"
 
@@ -103,22 +103,28 @@ def run_enrich(conn: psycopg.Connection, client: JsonClient, rates: dict[str, fl
                report: RunReport) -> None:
     offers = db.fetch_to_enrich(conn)
     progress = Progress("enrich", total=len(offers))
-    enriched = 0
+    enriched = consecutive_errors = 0
     for index, offer in enumerate(offers):
         title = offer["title"][:60]
         try:
             data = client.generate_json(SYSTEM, offer_text(offer), EXTRACTION_SCHEMA)
             extraction = Extraction.model_validate(data)
-        except (GeminiQuotaError, SourceAuthError) as exc:
+        except FATAL_ERRORS as exc:
             report.error("enrich", redact(str(exc)))
-            log.warning("enrich : %s", redact(str(exc)))
-            log.warning("enrich : arrêt, %d offre(s) reprise(s) au prochain passage",
-                        len(offers) - index)
+            stop_stage("enrich", len(offers) - index, redact(str(exc)))
             break
         except Exception as exc:  # réponse invalide : on passe à l'offre suivante
-            report.error("enrich", redact(f"{type(exc).__name__}: {exc}"))
-            progress.step(f"erreur ({type(exc).__name__}) · {title}")
+            message = redact(f"{type(exc).__name__}: {exc}")
+            report.error("enrich", message)
+            progress.step(f"erreur · {title} · {message}")
+            consecutive_errors += 1
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                stop_stage("enrich", len(offers) - index - 1,
+                           f"{MAX_CONSECUTIVE_ERRORS} erreurs consécutives, erreur probablement "
+                           f"systématique — {message}")
+                break
             continue
+        consecutive_errors = 0
         extracted, summary = finalize(extraction, offer["description"], rates)
         fields = {"extracted": extracted, "summary": summary,
                   "city": offer["city"] or extracted["city"]}

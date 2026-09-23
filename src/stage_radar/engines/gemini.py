@@ -19,6 +19,17 @@ class GeminiQuotaError(Exception):
     """Quota (429) toujours dépassé après nouvelles tentatives : on s'arrête pour aujourd'hui."""
 
 
+class GeminiRequestError(Exception):
+    """Erreur 4xx permanente (modèle introuvable, requête invalide) : inutile de continuer."""
+
+
+def _api_message(response: httpx.Response) -> str:
+    try:
+        return str(response.json()["error"]["message"])
+    except (ValueError, KeyError, TypeError):
+        return response.text[:300]
+
+
 class GeminiClient:
     def __init__(self, api_key: str, model: str, min_interval_s: float = 0.0,
                  client: httpx.Client | None = None,
@@ -56,14 +67,18 @@ class GeminiClient:
                     raise
                 self.sleep(5 * attempt)
                 continue
-            if response.status_code == 429:
+            code = response.status_code
+            if code == 429:
                 if last:
-                    raise GeminiQuotaError("quota Gemini atteint (HTTP 429)")
+                    raise GeminiQuotaError(
+                        f"quota Gemini atteint (HTTP 429) : {_api_message(response)}")
                 self.sleep(30)
                 continue
-            if response.status_code in (401, 403):
-                raise SourceAuthError(f"Gemini HTTP {response.status_code}")
-            if response.status_code >= 500 and not last:
+            if code in (401, 403):
+                raise SourceAuthError(f"Gemini HTTP {code} : {_api_message(response)}")
+            if 400 <= code < 500:
+                raise GeminiRequestError(f"Gemini HTTP {code} : {_api_message(response)}")
+            if code >= 500 and not last:
                 self.sleep(5 * attempt)
                 continue
             response.raise_for_status()

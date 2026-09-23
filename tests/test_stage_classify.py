@@ -5,7 +5,7 @@ from stage_radar import db
 from stage_radar.config import load_yaml
 from stage_radar.engines.base import Decision, load_questions
 from stage_radar.engines.fake import FakeEngine
-from stage_radar.engines.gemini import GeminiQuotaError
+from stage_radar.engines.gemini import GeminiQuotaError, GeminiRequestError
 from stage_radar.models import OfferStatus, RawOffer, RunReport
 from stage_radar.normalize import dedup_key
 from stage_radar.stages.classify import run_classify
@@ -57,3 +57,28 @@ def test_run_classify(conn, caplog):
     assert any(m.startswith("classify 2/3") and "rejetée (work_mode)" in m
                for m in caplog.messages)
     assert "classify : arrêt, 1 offre(s) reprise(s) au prochain passage" in caplog.messages
+
+
+def test_run_classify_stops_at_once_on_permanent_gemini_error(conn, caplog):
+    caplog.set_level(logging.INFO, logger="stage_radar")
+    add_prefiltered(conn, 4)
+    engine = ScriptedEngine([GeminiRequestError("Gemini HTTP 404 : model not found")])
+    report = RunReport()
+    run_classify(conn, engine, QUESTIONS, "profile", (0.85, 0.6), "v1", report)
+    assert len(db.fetch_offers(conn, [OfferStatus.PREFILTERED])) == 4
+    assert "404" in report.errors["classify"]
+    assert "classify : arrêt, 4 offre(s) reprise(s) au prochain passage" in caplog.messages
+
+
+def test_run_classify_circuit_breaker_after_consecutive_errors(conn, caplog):
+    caplog.set_level(logging.INFO, logger="stage_radar")
+    add_prefiltered(conn, 6)
+    base = FakeEngine().classify("", "", QUESTIONS)
+    engine = ScriptedEngine([RuntimeError("a"), base, RuntimeError("b"), RuntimeError("c"),
+                             RuntimeError("d")])
+    report = RunReport()
+    run_classify(conn, engine, QUESTIONS, "profile", (0.85, 0.6), "v1", report)
+    assert len(db.fetch_offers(conn, [OfferStatus.CLASSIFIED])) == 1
+    assert len(db.fetch_offers(conn, [OfferStatus.PREFILTERED])) == 5
+    assert any("3 erreurs consécutives" in m for m in caplog.messages)
+    assert any("RuntimeError: b" in m for m in caplog.messages)  # message affiché

@@ -9,9 +9,19 @@ import psycopg
 from stage_radar import db
 from stage_radar.collectors.base import SourceAuthError, redact
 from stage_radar.engines.base import Decision, DecisionEngine, Question, offer_text
-from stage_radar.engines.gemini import GeminiQuotaError
+from stage_radar.engines.gemini import GeminiQuotaError, GeminiRequestError
 from stage_radar.models import OfferStatus, RunReport
 from stage_radar.progress import Progress, log
+
+# Erreurs qui touchent toutes les offres (clé, quota, modèle, requête) : on s'arrête tout de suite.
+FATAL_ERRORS = (GeminiQuotaError, GeminiRequestError, SourceAuthError)
+# Au-delà, une erreur « par offre » est en réalité systématique : on s'arrête aussi.
+MAX_CONSECUTIVE_ERRORS = 3
+
+
+def stop_stage(stage: str, remaining: int, reason: str) -> None:
+    log.error("%s : %s", stage, reason)
+    log.warning("%s : arrêt, %d offre(s) reprise(s) au prochain passage", stage, remaining)
 
 
 @dataclass
@@ -46,21 +56,27 @@ def run_classify(conn: psycopg.Connection, engine: DecisionEngine, questions: li
     reject_threshold, uncertain_below = thresholds
     offers = db.fetch_offers(conn, [OfferStatus.PREFILTERED])
     progress = Progress("classify", total=len(offers))
-    passed = 0
+    passed = consecutive_errors = 0
     for index, offer in enumerate(offers):
         title = offer["title"][:60]
         try:
             decisions = engine.classify(offer_text(offer), profile, questions)
-        except (GeminiQuotaError, SourceAuthError) as exc:
+        except FATAL_ERRORS as exc:
             report.error("classify", redact(str(exc)))
-            log.warning("classify : %s", redact(str(exc)))
-            log.warning("classify : arrêt, %d offre(s) reprise(s) au prochain passage",
-                        len(offers) - index)
+            stop_stage("classify", len(offers) - index, redact(str(exc)))
             break
         except Exception as exc:  # une offre problématique ne bloque pas les suivantes
-            report.error("classify", redact(f"{type(exc).__name__}: {exc}"))
-            progress.step(f"erreur ({type(exc).__name__}) · {title}")
+            message = redact(f"{type(exc).__name__}: {exc}")
+            report.error("classify", message)
+            progress.step(f"erreur · {title} · {message}")
+            consecutive_errors += 1
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                stop_stage("classify", len(offers) - index - 1,
+                           f"{MAX_CONSECUTIVE_ERRORS} erreurs consécutives, erreur probablement "
+                           f"systématique — {message}")
+                break
             continue
+        consecutive_errors = 0
         outcome = apply_zones(questions, decisions, reject_threshold, uncertain_below)
         payload = {k: {"answer": d.answer, "p": d.p} for k, d in decisions.items()}
         if outcome.rejected:
