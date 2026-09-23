@@ -20,6 +20,7 @@ from stage_radar.digest import (
 )
 from stage_radar.emailer import Sender
 from stage_radar.models import RunReport
+from stage_radar.progress import log
 from stage_radar.rules import Rules
 from stage_radar.scoring import ScoreInput, compute, cost_of_living, explain, finance_badge
 from stage_radar.visa import apply_deadline
@@ -114,7 +115,9 @@ def run_notify(conn: psycopg.Connection, sender: Sender, ctx: NotifyContext, tod
     digest = Digest(date_label=french_date(today), new_count=len(ranked), items=items,
                     extra_count=max(0, len(ranked) - top_n), stats=stats_lines(report),
                     closing=closing, audit=audit, errors=dict(report.errors))
+    log.info("notify : envoi du digest (%d offre(s), top %d)", len(ranked), len(items))
     sender.send(*render(digest))
     db.mark_notified(conn, [o["id"] for o in ranked])
     conn.commit()
     report.count("notify", "sent", len(ranked))
+    log.info("notify : digest envoyé — %d offre(s)", len(ranked))

@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime
 
 from stage_radar import db
@@ -45,7 +46,8 @@ def components(collectors):
                       sender=CaptureSender(), rates_loader=lambda: {"GBP": 0.85})
 
 
-def test_end_to_end(conn):
+def test_end_to_end(conn, caplog):
+    caplog.set_level(logging.INFO, logger="stage_radar")
     comps = components([OneOfferCollector()])
     code = run_pipeline(conn, comps, load_settings(), STAGES, TODAY)
     assert code == 0
@@ -57,6 +59,11 @@ def test_end_to_end(conn):
     assert run["counts"]["classify"] == {"passed": 1}
     [offer] = db.fetch_scorable(conn)
     assert offer["status"] == "notified" and offer["extracted"]["salary_eur_month"] == 1500
+    messages = caplog.messages
+    for expected in ("collect fake : terminé", "prefilter : terminé", "classify : terminé",
+                     "enrich : terminé", "notify : digest envoyé — 1 offre(s)",
+                     "run terminé en"):
+        assert any(m.startswith(expected) for m in messages), expected
 
 
 def test_all_sources_failing_returns_error_code(conn):

@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 from stage_radar import db
@@ -34,7 +35,8 @@ class ScriptedEngine:
         return item
 
 
-def test_run_classify(conn):
+def test_run_classify(conn, caplog):
+    caplog.set_level(logging.INFO, logger="stage_radar")
     add_prefiltered(conn, 3)
     base = FakeEngine().classify("", "", QUESTIONS)
     engine = ScriptedEngine([
@@ -51,3 +53,7 @@ def test_run_classify(conn):
     assert len(db.fetch_offers(conn, [OfferStatus.PREFILTERED])) == 1  # repris au prochain run
     assert report.counts["classify"] == {"passed": 1, "rejected_work_mode": 1}
     assert "quota" in report.errors["classify"]
+    assert any(m.startswith("classify 1/3") and "retenue" in m for m in caplog.messages)
+    assert any(m.startswith("classify 2/3") and "rejetée (work_mode)" in m
+               for m in caplog.messages)
+    assert "classify : arrêt, 1 offre(s) reprise(s) au prochain passage" in caplog.messages

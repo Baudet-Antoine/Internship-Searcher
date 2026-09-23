@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -19,6 +20,7 @@ from stage_radar.engines.base import DecisionEngine, Question, engine_version, l
 from stage_radar.engines.fake import FakeEngine
 from stage_radar.engines.gemini import GeminiClient, GeminiEngine
 from stage_radar.models import RunReport
+from stage_radar.progress import fmt_duration, log
 from stage_radar.rules import Rules
 from stage_radar.salary import fetch_rates
 from stage_radar.stages.classify import run_classify
@@ -28,6 +30,7 @@ from stage_radar.stages.notify import NotifyContext, run_notify
 from stage_radar.stages.prefilter import run_prefilter
 
 STAGES = ["collect", "prefilter", "classify", "enrich", "notify"]
+MISSING_GEMINI = "GEMINI_API_KEY manquant"
 
 
 @dataclass
@@ -98,6 +101,9 @@ def run_pipeline(conn: psycopg.Connection, comps: Components, settings: Settings
     report = RunReport()
     since = _since(conn, settings, today)
     run_id, started = db.start_run(conn)
+    clock_start = time.monotonic()
+    log.info("run démarré — étapes : %s · offres publiées depuis le %s",
+             ", ".join(stages), since.isoformat())
     crashed = False
     version = engine_version(comps.engine.name if comps.engine else "none", settings.decisions)
     thresholds = (settings.decisions.get("reject_threshold", 0.85),
@@ -110,11 +116,11 @@ def run_pipeline(conn: psycopg.Connection, comps: Components, settings: Settings
         "classify": lambda: (
             run_classify(conn, comps.engine, settings.questions, settings.profile, thresholds,
                          version, report)
-            if comps.engine else report.error("classify", "GEMINI_API_KEY manquant")
+            if comps.engine else report.error("classify", MISSING_GEMINI)
         ),
         "enrich": lambda: (
             run_enrich(conn, comps.llm, comps.rates_loader(), report)
-            if comps.llm else report.error("enrich", "GEMINI_API_KEY manquant")
+            if comps.llm else report.error("enrich", MISSING_GEMINI)
         ),
         "notify": lambda: run_notify(
             conn, comps.sender,
@@ -129,9 +135,18 @@ def run_pipeline(conn: psycopg.Connection, comps: Components, settings: Settings
             conn.rollback()
             crashed = True
             report.error(name, redact(f"{type(exc).__name__}: {exc}"))
+            log.error("%s : échec de l'étape — %s", name, report.errors[name])
+        if name in ("classify", "enrich") and report.errors.get(name) == MISSING_GEMINI:
+            log.warning("%s : sautée — %s", name, MISSING_GEMINI)
 
     db.finish_run(conn, run_id, report)
     conn.commit()
     names = [c.name for c in comps.collectors]
     all_sources_failed = "collect" in stages and names and all(n in report.errors for n in names)
+    elapsed = fmt_duration(time.monotonic() - clock_start)
+    if report.errors:
+        log.warning("run terminé en %s avec %d erreur(s) : %s", elapsed, len(report.errors),
+                    ", ".join(report.errors))
+    else:
+        log.info("run terminé en %s sans erreur", elapsed)
     return 1 if crashed or all_sources_failed else 0

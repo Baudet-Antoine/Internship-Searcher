@@ -13,6 +13,7 @@ from stage_radar.collectors.base import SourceAuthError, redact
 from stage_radar.engines.base import offer_text
 from stage_radar.engines.gemini import GeminiQuotaError
 from stage_radar.models import OfferStatus, RunReport
+from stage_radar.progress import Progress, log
 from stage_radar.salary import find_salary, plausible, to_monthly_eur
 
 START_MIN, START_MAX = "2026-10", "2027-09"
@@ -100,15 +101,23 @@ def finalize(ex: Extraction, description: str, rates: dict[str, float]) -> tuple
 
 def run_enrich(conn: psycopg.Connection, client: JsonClient, rates: dict[str, float],
                report: RunReport) -> None:
-    for offer in db.fetch_to_enrich(conn):
+    offers = db.fetch_to_enrich(conn)
+    progress = Progress("enrich", total=len(offers))
+    enriched = 0
+    for index, offer in enumerate(offers):
+        title = offer["title"][:60]
         try:
             data = client.generate_json(SYSTEM, offer_text(offer), EXTRACTION_SCHEMA)
             extraction = Extraction.model_validate(data)
         except (GeminiQuotaError, SourceAuthError) as exc:
             report.error("enrich", redact(str(exc)))
+            log.warning("enrich : %s", redact(str(exc)))
+            log.warning("enrich : arrêt, %d offre(s) reprise(s) au prochain passage",
+                        len(offers) - index)
             break
         except Exception as exc:  # réponse invalide : on passe à l'offre suivante
             report.error("enrich", redact(f"{type(exc).__name__}: {exc}"))
+            progress.step(f"erreur ({type(exc).__name__}) · {title}")
             continue
         extracted, summary = finalize(extraction, offer["description"], rates)
         fields = {"extracted": extracted, "summary": summary,
@@ -118,3 +127,8 @@ def run_enrich(conn: psycopg.Connection, client: JsonClient, rates: dict[str, fl
         db.update_offer(conn, offer["id"], **fields)
         conn.commit()
         report.count("enrich", "enriched")
+        enriched += 1
+        salary = extracted["salary_eur_month"]
+        progress.step((f"{salary} €/mois" if salary is not None else "salaire inconnu")
+                      + f" · {title}")
+    progress.done(f"{enriched} enrichie(s)")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from datetime import date
@@ -14,8 +15,18 @@ from stage_radar import db
 from stage_radar.pipeline import STAGES, build_components, load_settings, run_pipeline
 
 
+def setup_logging() -> None:
+    # Une console Windows en cp1252 ne doit pas faire échouer un log accentué.
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(errors="replace")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s",
+                        datefmt="%H:%M:%S", stream=sys.stderr)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
+    setup_logging()
     parser = argparse.ArgumentParser(prog="stage_radar")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("migrate", help="applique les migrations SQL")
