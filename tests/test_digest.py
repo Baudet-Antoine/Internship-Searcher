@@ -1,6 +1,14 @@
 from datetime import date
 
-from stage_radar.digest import Digest, DigestItem, flag_emoji, french_date, render, stats_lines
+from stage_radar.digest import (
+    Digest,
+    DigestItem,
+    flag_emoji,
+    french_date,
+    one_line,
+    render,
+    stats_lines,
+)
 from stage_radar.models import RunReport
 
 
@@ -8,6 +16,17 @@ def test_helpers():
     assert flag_emoji("NL") == "🇳🇱"
     assert flag_emoji(None) == "🏳️"
     assert french_date(date(2026, 10, 14)) == "mercredi 14 octobre"
+
+
+def test_one_line():
+    assert one_line("a\n\n  b\tc", 50) == "a b c"
+    assert one_line("x" * 10, 5) == "xxxx…"
+
+
+def test_text_layout_keeps_one_field_per_line():
+    item = DigestItem(1, "T", "C", "🇩🇪", "Berlin", 50.0, "meta", "", "snip", [], "why", [])
+    text = render(Digest("d", 1, [item], 0, [], [], [], {}))[2]
+    assert "   snip\n   Pourquoi : why\n" in text
 
 
 def test_stats_lines():

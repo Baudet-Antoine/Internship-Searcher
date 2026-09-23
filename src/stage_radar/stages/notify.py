@@ -9,7 +9,15 @@ import psycopg
 
 from stage_radar import db
 from stage_radar.config import Country
-from stage_radar.digest import Digest, DigestItem, flag_emoji, french_date, render, stats_lines
+from stage_radar.digest import (
+    Digest,
+    DigestItem,
+    flag_emoji,
+    french_date,
+    one_line,
+    render,
+    stats_lines,
+)
 from stage_radar.emailer import Sender
 from stage_radar.models import RunReport
 from stage_radar.rules import Rules
@@ -86,7 +94,7 @@ def run_notify(conn: psycopg.Connection, sender: Sender, ctx: NotifyContext, tod
             flag=flag_emoji(offer["country"]),
             place=offer["city"] or offer["country"] or "",
             score=score, meta=_meta(offer, inp, balance), summary=offer["summary"] or "",
-            snippet=(offer["description"] or "")[:280],
+            snippet=one_line(offer["description"], 280),
             requirements=offer["extracted"].get("key_requirements") or [],
             why=explain(inp, parts, offer["country"], today), links=links,
         ))

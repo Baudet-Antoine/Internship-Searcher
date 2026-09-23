@@ -82,12 +82,46 @@ def stats_lines(report: RunReport) -> list[str]:
 _env = Environment(loader=PackageLoader("stage_radar", "templates"),
                    autoescape=select_autoescape(["html", "j2"]), trim_blocks=True,
                    lstrip_blocks=True)
-_text_env = Environment(loader=PackageLoader("stage_radar", "templates"), autoescape=False,
-                        trim_blocks=True, lstrip_blocks=True)
+
+
+def one_line(text: str, limit: int) -> str:
+    compact = " ".join((text or "").split())
+    return compact if len(compact) <= limit else compact[: limit - 1] + "…"
+
+
+def render_text(d: Digest) -> str:
+    out = [f"Stages DS — {d.date_label} · {d.new_count} nouvelle(s) offre(s)", ""]
+    if d.errors:
+        out.append("⚠️ ERREURS")
+        out += [f"  - {where} : {msg}" for where, msg in d.errors.items()]
+        out.append("")
+    out += [f"📊 {line}" for line in d.stats]
+    if d.closing:
+        out += ["", "⏰ FENÊTRES QUI SE FERMENT"]
+        out += [f"  {c['flag']} {c['name']} — postuler avant le {c['deadline']} "
+                f"(dans {c['days']} j)" for c in d.closing]
+    for it in d.items:
+        out += ["", f"{it.rank}. {it.title} — {it.company} · {it.flag} {it.place}   "
+                    f"[{it.score}]", f"   {it.meta}",
+                f"   {it.summary or one_line(it.snippet, 280)}"]
+        if it.requirements:
+            out.append("   " + " · ".join(it.requirements))
+        if it.why:
+            out.append(f"   Pourquoi : {it.why}")
+        out += [f"   → {link['source']} : {link['url']}" for link in it.links]
+    out.append("")
+    if d.extra_count:
+        out.append(f"+ {d.extra_count} autres offres dans Supabase (vue v_inbox).")
+    if not d.items:
+        ok = "" if d.errors else " — le pipeline tourne bien"
+        out.append(f"Aucune nouvelle offre retenue aujourd'hui{ok}.")
+    if d.audit:
+        out += ["", "🔍 Audit : rejets pris au hasard"]
+        out += [f"  ✗ {a['title']} — {a['company']} · {a['reason']}" for a in d.audit]
+    return "\n".join(out) + "\n"
 
 
 def render(digest: Digest) -> tuple[str, str, str]:
     subject = f"📬 Stages DS — {digest.date_label} · {digest.new_count} nouvelle(s) offre(s)"
     html = _env.get_template("digest.html.j2").render(d=digest)
-    text = _text_env.get_template("digest.txt.j2").render(d=digest)
-    return subject, html, text
+    return subject, html, render_text(digest)
