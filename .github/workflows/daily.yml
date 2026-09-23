@@ -1,7 +1,7 @@
 name: daily
 on:
   schedule:
-    - cron: "0 5 * * *"   # ~07:00 Paris (été) / 06:00 (hiver)
+    - cron: "7 1 * * *"   # ~03:07 Paris (été) / 02:07 (hiver) — hors de l'usage perso des API
   workflow_dispatch:
 concurrency:
   group: daily

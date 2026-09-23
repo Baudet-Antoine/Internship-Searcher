@@ -36,7 +36,7 @@ la vie ; le salaire n'est jamais bloquant) et certitude des décisions.
 ## 2. Architecture
 
 ```
-GitHub Actions — daily.yml (cron ~07:00 Europe/Paris + workflow_dispatch)
+GitHub Actions — daily.yml (cron ~03:00 Europe/Paris + workflow_dispatch)
   │
   ├─ collect     Adzuna · Jooble · Bundesagentur für Arbeit · JobTech (SE) · ATS (Greenhouse/Lever/Ashby)
   ├─ prefilter   règles déterministes (rules.yaml) + fenêtre visa
