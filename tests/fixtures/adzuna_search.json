@@ -1,0 +1,24 @@
+{
+  "count": 2,
+  "results": [
+    {
+      "id": "4811",
+      "title": "<strong>Data Science</strong> Intern (m/f/d)",
+      "description": "Join our fraud team for a 6-month internship...",
+      "redirect_url": "https://www.adzuna.nl/details/4811",
+      "created": "2026-09-21T08:00:00Z",
+      "company": {"display_name": "Adyen"},
+      "location": {"display_name": "Amsterdam, Noord-Holland", "area": ["Nederland", "Noord-Holland", "Amsterdam"]},
+      "salary_min": 1800, "salary_max": 1800, "salary_is_predicted": "0"
+    },
+    {
+      "id": "4812",
+      "title": "Machine Learning Intern",
+      "description": "Remote first...",
+      "redirect_url": "https://www.adzuna.nl/details/4812",
+      "created": "2026-09-22T08:00:00Z",
+      "company": {"display_name": "Example B.V."},
+      "location": {"display_name": "Nederland", "area": ["Nederland"]}
+    }
+  ]
+}

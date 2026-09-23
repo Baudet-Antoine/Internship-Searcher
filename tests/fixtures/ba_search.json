@@ -1,0 +1,13 @@
+{
+  "stellenangebote": [
+    {
+      "refnr": "10001-1000123456-S",
+      "titel": "Praktikant Data Science (m/w/d)",
+      "beruf": "Praktikant/in",
+      "arbeitgeber": "Zalando SE",
+      "arbeitsort": {"ort": "Berlin", "land": "Deutschland"},
+      "aktuelleVeroeffentlichungsdatum": "2026-09-20"
+    }
+  ],
+  "maxErgebnisse": 1
+}
