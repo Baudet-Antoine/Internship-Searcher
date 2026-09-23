@@ -1,0 +1,50 @@
+engine: gemini
+gemini_model: gemini-2.5-flash
+gemini_min_interval_s: 4.5
+reject_threshold: 0.85
+uncertain_below: 0.6
+questions:
+  - id: is_internship_convention
+    label: stage sous convention
+    kind: bool
+    prompt: "Is this an internship a student can do under a university internship agreement (not a permanent or fixed-term job, not a working-student or part-time job, not a graduate programme)?"
+    reject_answers: ["no"]
+  - id: local_enrollment_required
+    label: inscription locale exigée
+    kind: bool
+    prompt: "Does the offer require being enrolled at a university located in the job's country (e.g. 'must be enrolled at a German university')?"
+    reject_answers: ["yes"]
+  - id: duration
+    label: durée
+    kind: choice
+    prompt: "What is the internship duration? lt4 = under 4 months, 4to5 = 4 to 5 months, 6plus = 6 months or more, unspecified = not stated."
+    choices: ["lt4", "4to5", "6plus", "unspecified"]
+    reject_answers: ["lt4", "4to5"]
+    flag_answers: ["unspecified"]
+    flag_text: "durée non précisée"
+  - id: start
+    label: démarrage
+    kind: choice
+    prompt: "When does the internship start? before_dec = before December 2026; dec_mar = December 2026 to March 2027 inclusive; after_mar = after March 2027; unspecified = not stated, 'as soon as possible' or 'flexible'."
+    choices: ["before_dec", "dec_mar", "after_mar", "unspecified"]
+    reject_answers: ["before_dec", "after_mar"]
+    flag_answers: ["unspecified"]
+    flag_text: "date de démarrage non précisée"
+  - id: work_mode
+    label: mode de travail
+    kind: choice
+    prompt: "What is the work mode? onsite, hybrid, remote (fully remote), unspecified."
+    choices: ["onsite", "hybrid", "remote", "unspecified"]
+    reject_answers: ["remote"]
+    flag_answers: ["unspecified"]
+    flag_text: "mode de travail non précisé"
+  - id: other_language_required
+    label: langue exigée
+    kind: bool
+    prompt: "Does the offer REQUIRE fluency in a language other than English, French or Spanish (e.g. German, Dutch, Swedish)? Answer 'no' if such a language is only a plus or if the offer is written in it without stating a requirement."
+    reject_answers: ["yes"]
+  - id: profile_fit
+    label: adéquation profil
+    kind: score
+    include_profile: true
+    prompt: "How well does the candidate profile fit this internship? 1 = unrelated, 5 = excellent fit."

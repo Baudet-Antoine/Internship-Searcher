@@ -1,0 +1,12 @@
+education: "BSc Data Science for Responsible Business — emlyon Business School & École Centrale de Lyon (diplôme sept. 2027), GPA 4.0/4.0; échange Sungkyunkwan University (Computer Science)"
+languages: ["French (native)", "English (bilingual, C1 certified)", "Spanish (B1)"]
+experience:
+  - "Data Science & Development intern (12 months): built an AI-driven market research platform (LLM, national open data) for agri-food SMEs"
+  - "Research assistant intern, University of Brescia: data management with blockchain (Hyperledger Fabric), LLMs and knowledge graphs"
+  - "Unity game developer intern: C#, databases, LiveOps"
+projects:
+  - "Full-stack trading platform (React, JavaScript, Chromium extension, TLSNotary, self-hosted VPS)"
+  - "Reimplementation of the NeRF paper from scratch"
+  - "Lap-time prediction ML model (98.5% accuracy)"
+skills: ["Python", "Machine Learning", "Deep Learning", "LLM / RAG", "Knowledge graphs", "Statistics", "Big Data", "SQL", "React / JavaScript", "AWS (Cloud Practitioner)"]
+interests: "Applied ML, LLM products, data-driven products with business impact"

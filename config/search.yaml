@@ -1,0 +1,21 @@
+lookback_days_first_run: 30
+overlap_days: 2
+adzuna:
+  enabled: true
+  countries: [gb, de, nl, be, at, ch, es, it, pl, ca, us, sg, au]
+  queries: ["data science intern", "machine learning intern", "data internship", "AI intern"]
+  extra_queries:
+    de: ["praktikum data"]
+    at: ["praktikum data"]
+    ch: ["praktikum data"]
+    nl: ["stage data"]
+    be: ["stage data"]
+    es: ["prácticas data"]
+    it: ["stage data"]
+  max_pages: 2
+  results_per_page: 50
+arbeitsagentur:
+  enabled: true
+  queries: ["Data Science", "Machine Learning", "Data Analytics", "Künstliche Intelligenz"]
+  max_pages: 2
+  page_size: 50
