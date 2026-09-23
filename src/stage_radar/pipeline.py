@@ -73,7 +73,7 @@ def build_components(settings: Settings, env: Mapping[str, str],
     llm = None
     if env.get("GEMINI_API_KEY"):
         llm = GeminiClient(env["GEMINI_API_KEY"], settings.decisions.get("gemini_model",
-                                                                         "gemini-2.5-flash"),
+                                                                         "gemini-3.6-flash"),
                            min_interval_s=float(settings.decisions.get("gemini_min_interval_s",
                                                                        0)))
     engine: DecisionEngine | None

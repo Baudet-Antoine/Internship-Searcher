@@ -1,5 +1,5 @@
 engine: gemini
-gemini_model: gemini-2.5-flash
+gemini_model: gemini-3.6-flash
 gemini_min_interval_s: 4.5
 reject_threshold: 0.85
 uncertain_below: 0.6
