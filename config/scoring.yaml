@@ -1,0 +1,11 @@
+top_n: 15
+weights:
+  fit: 0.45
+  freshness: 0.20
+  urgency: 0.15
+  finance: 0.10
+  certainty: 0.10
+freshness_days: 14
+urgency_full_days: 21
+urgency_zero_days: 90
+closing_window_days: 30

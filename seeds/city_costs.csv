@@ -1,0 +1,19 @@
+city,country,cost_of_living_eur
+London,GB,2000
+Zurich,CH,2500
+Zürich,CH,2500
+Geneva,CH,2500
+Amsterdam,NL,1700
+Munich,DE,1400
+München,DE,1400
+Berlin,DE,1200
+Dublin,IE,1900
+Copenhagen,DK,1600
+Stockholm,SE,1400
+Oslo,NO,1700
+Barcelona,ES,1200
+Madrid,ES,1150
+Milan,IT,1200
+New York,US,3000
+San Francisco,US,3200
+Singapore,SG,1800

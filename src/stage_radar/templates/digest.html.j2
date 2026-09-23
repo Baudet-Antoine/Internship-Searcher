@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr"><body style="margin:0;background:#f6f6f4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1d1d1b">
+<div style="max-width:680px;margin:0 auto;padding:24px 16px">
+  <h1 style="font-size:20px;margin:0 0 4px">📬 Stages DS — {{ d.date_label }}</h1>
+  <p style="margin:0 0 16px;color:#5f5f5a">{{ d.new_count }} nouvelle(s) offre(s)</p>
+  {% if d.errors %}
+  <div style="background:#fdecea;border-radius:8px;padding:12px;margin-bottom:16px">
+    <strong>⚠️ Erreurs</strong>
+    <ul style="margin:6px 0 0;padding-left:18px">{% for where, msg in d.errors.items() %}<li><b>{{ where }}</b> : {{ msg }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px">
+    {% for line in d.stats %}<div>📊 {{ line }}</div>{% endfor %}
+  </div>
+  {% if d.closing %}
+  <div style="background:#fff7e6;border-radius:8px;padding:12px;margin-bottom:16px;font-size:14px">
+    <strong>⏰ Fenêtres qui se ferment</strong>
+    {% for c in d.closing %}<div>{{ c.flag }} {{ c.name }} — postuler avant le {{ c.deadline }} (dans {{ c.days }} j)</div>{% endfor %}
+  </div>
+  {% endif %}
+  {% for it in d.items %}
+  <div style="background:#fff;border-radius:8px;padding:14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;gap:8px">
+      <div style="font-weight:600">{{ it.rank }}. {{ it.title }}</div>
+      <div style="font-weight:700;color:#2b6cb0">{{ it.score }}</div>
+    </div>
+    <div style="color:#5f5f5a;font-size:14px">{{ it.company }} · {{ it.flag }} {{ it.place }}</div>
+    <div style="font-size:13px;margin-top:6px">{{ it.meta }}</div>
+    <p style="font-size:14px;margin:8px 0">{% if it.summary %}{{ it.summary }}{% else %}<i>{{ it.snippet }}</i>{% endif %}</p>
+    {% if it.requirements %}<div style="font-size:13px;color:#5f5f5a">{{ it.requirements|join(' · ') }}</div>{% endif %}
+    {% if it.why %}<div style="font-size:13px;margin-top:4px">Pourquoi : {{ it.why }}</div>{% endif %}
+    <div style="font-size:13px;margin-top:8px">{% for l in it.links %}<a href="{{ l.url }}" style="color:#2b6cb0;margin-right:12px">→ {{ l.source }}</a>{% endfor %}</div>
+  </div>
+  {% endfor %}
+  {% if d.extra_count %}<p style="font-size:14px">+ {{ d.extra_count }} autres offres dans Supabase (vue <code>v_inbox</code>).</p>{% endif %}
+  {% if not d.items %}<p>Aucune nouvelle offre retenue aujourd'hui{% if not d.errors %} — le pipeline tourne bien{% endif %}.</p>{% endif %}
+  {% if d.audit %}
+  <div style="font-size:13px;color:#5f5f5a;margin-top:20px">
+    <strong>🔍 Audit : rejets pris au hasard</strong>
+    {% for a in d.audit %}<div>✗ {{ a.title }} — {{ a.company }} · {{ a.reason }}</div>{% endfor %}
+  </div>
+  {% endif %}
+</div></body></html>

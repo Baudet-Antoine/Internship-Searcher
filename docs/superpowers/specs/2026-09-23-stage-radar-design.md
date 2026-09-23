@@ -1,7 +1,7 @@
 # Stage Radar — Document de conception
 
 - **Date :** 2026-09-23
-- **Statut :** validé (brainstorming), en attente de relecture
+- **Statut :** validé ; v1.0 implémentée (écarts d'implémentation intégrés ci-dessous)
 - **Auteur :** Antoine Baudet
 
 ## 1. Objectif
@@ -51,7 +51,7 @@ GitHub Actions — daily.yml (cron ~07:00 Europe/Paris + workflow_dispatch)
 
 **Orchestration : la base comme machine à états.** Chaque offre porte un statut, et chaque étape est un module
 indépendant qui ne traite que les offres au statut précédent. Conséquences : reprise automatique après une
-panne ou un quota épuisé, étapes relançables individuellement (`python -m pipeline <étape>`), et traçabilité
+panne ou un quota épuisé, étapes relançables individuellement (`python -m stage_radar run --stages <étape>`), et traçabilité
 de chaque rejet.
 
 ```
@@ -68,19 +68,18 @@ n'écrit jamais `applications.user_status`.
 
 | Table | Colonnes principales |
 |---|---|
-| `offers` | `id uuid`, `dedup_key text unique`, `title`, `company`, `country` (ISO-2), `city`, `description`, `description_is_full bool`, `posted_at`, `collected_at`, `last_seen_at`, `status` (enum), `rejected_stage`, `rejected_reason`, `decisions jsonb`, `extracted jsonb`, `score numeric`, `score_breakdown jsonb`, `summary`, `engine_version`, `notified_at` |
+| `offers` | `id uuid`, `dedup_key text unique`, `title`, `company`, `country` (ISO-2), `city`, `description`, `description_is_full bool`, `posted_at`, `collected_at`, `last_seen_at`, `status` (enum), `rejected_stage`, `rejected_reason`, `decisions jsonb`, `flags jsonb` (points à vérifier), `extracted jsonb`, `score numeric`, `score_breakdown jsonb`, `summary`, `engine_version`, `notified_at` |
 | `offer_sources` | `offer_id → offers`, `source`, `source_id`, `url`, `first_seen_at`, `raw jsonb` ; `UNIQUE(source, source_id)` |
 | `applications` | `offer_id → offers` (1–1), `user_status` enum (`new`, `interested`, `applied`, `interview`, `offer`, `rejected`, `dismissed`), `notes`, `label bool` (futur entraînement SetFit), `updated_at` |
-| `countries` | `code`, `name`, `visa_lead_weeks`, `cost_of_living_eur`, `in_scope bool` — alimentée par un seed versionné |
-| `city_costs` | `city`, `country`, `cost_of_living_eur` — surcharges pour les villes chères |
 | `runs` | `id`, `started_at`, `finished_at`, `counts jsonb` (par étape et par raison de rejet), `errors jsonb` (par source) |
-| `eval_labels` | `offer_id`, `question`, `expected_answer`, `labeled_at` |
+| `eval_labels` (v1.1) | `offer_id`, `question`, `expected_answer`, `labeled_at` |
 
 - **`decisions` :** `{"<question>": {"answer": ..., "p": 0.97}, ...}`.
 - **`engine_version` :** hash du moteur et de `decisions.yaml`. Il permet de reclasser les offres traitées avec une ancienne configuration.
 - **Dédoublonnage :** (1) exact, via `UNIQUE(source, source_id)` avec mise à jour de `last_seen_at` ; (2) entre sources, via `dedup_key = sha1(norm(company) | norm(title) | country)`, où la normalisation passe en minuscules, retire les accents, les suffixes légaux (GmbH, Ltd, B.V., SA…) et les mentions « (m/w/d) », « (f/m/x) » et la ponctuation. Pas de dédoublonnage flou en v1.
+- **Référentiels :** `seeds/countries.csv` (`code`, `name`, `visa_lead_weeks`, `cost_of_living_eur`, `in_scope`) et `seeds/city_costs.csv` sont des CSV versionnés lus par le code. Aucune requête SQL n'en a besoin en v1, donc pas de table.
 - **Trigger :** à l'entrée d'une offre dans `classified` (offre non rejetée), une ligne `applications` est créée avec le statut `new`.
-- **Sécurité :** RLS activée sur toutes les tables. Le pipeline utilise la clé `service_role` (GitHub Secret). La lecture côté client (v2) nécessite une session Supabase Auth dont l'email figure dans une allowlist.
+- **Sécurité :** RLS activée sur toutes les tables, vues en `security_invoker`. Le pipeline se connecte en Postgres direct via `DATABASE_URL` (pooler Supabase, compatible IPv4). La lecture côté client (v2) nécessite une session Supabase Auth dont l'email figure dans une allowlist.
 
 ## 4. Collecteurs
 
@@ -109,7 +108,7 @@ class RawOffer:
 |---|---|---|
 | Adzuna | ~15 pays hors France | non (extrait, à confirmer) |
 | Jooble | Mondial | non (extrait) |
-| Bundesagentur für Arbeit | Allemagne, filtre stage natif | oui (endpoint de détail) |
+| Bundesagentur für Arbeit | Allemagne, filtre stage natif (`angebotsart=34`). Recherche `/pc/v6/jobs` (v4 renvoie 403), détail `/pc/v4/jobdetails/{base64(ref)}`. La date d'entrée est ajoutée en tête de description. | oui (endpoint de détail) |
 | JobTech | Suède | oui |
 | ATS : Greenhouse, Lever, Ashby | Entreprises listées dans `companies.yaml` | oui |
 
@@ -123,8 +122,8 @@ class RawOffer:
 | Règle | Rejet si |
 |---|---|
 | Pays | `FR`, ou pays hors de `countries.in_scope` |
-| Liste blanche du titre | aucun terme data **ou** aucun terme stage (`rules.yaml`) |
-| Liste noire du titre | senior, lead, manager, principal, head, werkstudent, working student, part-time, summer |
+| Liste blanche du titre | aucun terme data dans le titre, **ou** aucun terme stage ni dans le titre ni dans les 1 500 premiers caractères de la description (`rules.yaml`) |
+| Liste noire du titre | senior, head of, director, summer, part time, teilzeit (Werkstudent seul est déjà éliminé par la liste blanche ; « manager/lead » éliminaient des stages valides) |
 | Fraîcheur | `posted_at` il y a plus de 45 jours |
 | Fenêtre visa | `today > date_limite_postuler(pays)` |
 
@@ -244,7 +243,7 @@ depuis l'email ; entraînement hebdomadaire de SetFit sur `applications.label`. 
 - **Cache :** `actions/cache` sur le cache Hugging Face (poids de Laya) et sur pip.
 - **Pause Supabase :** l'exécution quotidienne suffit à éviter la mise en pause du projet gratuit.
 
-## 9. Évaluation
+## 9. Évaluation (v1.1, avec Laya)
 
 1. La commande `python -m pipeline eval-sample` tire environ 60 offres `prefiltered` diversifiées (pays, sources) dans `eval_labels`. L'utilisateur saisit ensuite les réponses attendues.
 2. La commande `python -m pipeline eval --engine <nom>` calcule, question par question, le **taux de faux rejets** (métrique principale), la justesse et la calibration (ECE, table de fiabilité).
@@ -257,14 +256,14 @@ depuis l'email ; entraînement hebdomadaire de SetFit sur `applications.label`. 
 | Unitaires | normalisation et `dedup_key`, règles, date limite visa, scoring, regex salaire, plausibilité | pytest, fonctions pures |
 | Collecteurs | réponse API → `RawOffer` | fixtures JSON enregistrées, sans réseau |
 | Moteurs | pipeline complet sans modèle | `FakeEngine` |
-| Intégration | transitions de statut, idempotence, trigger `applications` | Postgres en service container dans GitHub Actions |
+| Intégration | transitions de statut, idempotence, trigger `applications` | Postgres réel via `pgserver` (local et CI), ou `TEST_DATABASE_URL` |
 
 `ci.yml` (sur push et PR) exécute `ruff` et `pytest`. `daily.yml` exécute le pipeline.
 
 ## 11. Configuration et secrets
 
 - **Fichiers versionnés :** `search.yaml`, `rules.yaml`, `decisions.yaml`, `scoring.yaml`, `companies.yaml`, `profile.yaml`, `seeds/countries.csv`, `seeds/city_costs.csv`.
-- **GitHub Secrets :** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `DIGEST_TO`.
+- **GitHub Secrets :** `DATABASE_URL`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `DIGEST_TO`.
 
 ## 12. Points à vérifier au début de l'implémentation
 
