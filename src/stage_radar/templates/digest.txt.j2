@@ -1,0 +1,25 @@
+Stages DS — {{ d.date_label }} · {{ d.new_count }} nouvelle(s) offre(s)
+{% if d.errors %}
+⚠️ ERREURS
+{% for where, msg in d.errors.items() %}  - {{ where }} : {{ msg }}
+{% endfor %}{% endif %}
+📊 {% for line in d.stats %}{{ line }}
+   {% endfor %}
+{% if d.closing %}⏰ FENÊTRES QUI SE FERMENT
+{% for c in d.closing %}  {{ c.flag }} {{ c.name }} — postuler avant le {{ c.deadline }} (dans {{ c.days }} j)
+{% endfor %}{% endif %}
+{% for it in d.items %}
+{{ it.rank }}. {{ it.title }} — {{ it.company }} · {{ it.flag }} {{ it.place }}   [{{ it.score }}]
+   {{ it.meta }}
+   {% if it.summary %}{{ it.summary }}{% else %}{{ it.snippet }}{% endif %}
+   {% if it.requirements %}{{ it.requirements|join(' · ') }}{% endif %}
+   {% if it.why %}Pourquoi : {{ it.why }}{% endif %}
+   {% for l in it.links %}→ {{ l.source }} : {{ l.url }}
+   {% endfor %}
+{% endfor %}
+{% if d.extra_count %}+ {{ d.extra_count }} autres offres dans Supabase (vue v_inbox).
+{% endif %}{% if not d.items %}Aucune nouvelle offre aujourd'hui — le pipeline tourne bien.
+{% endif %}
+{% if d.audit %}🔍 Audit : rejets pris au hasard
+{% for a in d.audit %}  ✗ {{ a.title }} — {{ a.company }} · {{ a.reason }}
+{% endfor %}{% endif %}
