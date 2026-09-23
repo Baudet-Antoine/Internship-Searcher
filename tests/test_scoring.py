@@ -42,4 +42,5 @@ def test_explain():
     inp = ScoreInput(5, datetime(2026, 9, 30, tzinfo=UTC), date(2026, 10, 19), "profit", 0)
     _, parts = compute(inp, CFG, TODAY)
     text = explain(inp, parts, "GB", TODAY)
-    assert text == "profil 5/5 · publiée hier · fenêtre GB se ferme dans 18 j · salaire > coût de la vie"
+    assert text == ("profil 5/5 · publiée hier · fenêtre GB se ferme dans 18 j"
+                    " · salaire > coût de la vie")

@@ -1,7 +1,14 @@
 import httpx
 import respx
 
-from stage_radar.salary import FALLBACK_RATES, FX_URL, fetch_rates, find_salary, plausible, to_monthly_eur
+from stage_radar.salary import (
+    FALLBACK_RATES,
+    FX_URL,
+    fetch_rates,
+    find_salary,
+    plausible,
+    to_monthly_eur,
+)
 
 RATES = {"GBP": 0.85, "CHF": 0.95}
 

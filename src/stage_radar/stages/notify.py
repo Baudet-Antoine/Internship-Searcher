@@ -37,7 +37,8 @@ def _deadline(ctx: NotifyContext, country: str | None) -> date | None:
     return apply_deadline(c, ctx.rules.latest_start, ctx.rules.recruitment_weeks)
 
 
-def _score(offer: dict, ctx: NotifyContext, today: date) -> tuple[ScoreInput, float, dict, int | None]:
+def _score(offer: dict, ctx: NotifyContext,
+           today: date) -> tuple[ScoreInput, float, dict, int | None]:
     fit_answer = (offer["decisions"].get("profile_fit") or {}).get("answer")
     salary = offer["extracted"].get("salary_eur_month")
     cost = cost_of_living(offer["city"], offer["country"], ctx.countries, ctx.city_costs)

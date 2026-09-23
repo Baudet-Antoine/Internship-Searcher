@@ -27,7 +27,8 @@ def test_valid_offer_passes():
 
 
 def test_german_compound_praktikum_passes():
-    assert evaluate(offer("Pflichtpraktikum Data Analytics (m/w/d)"), RULES, COUNTRIES, TODAY).passed
+    title = "Pflichtpraktikum Data Analytics (m/w/d)"
+    assert evaluate(offer(title), RULES, COUNTRIES, TODAY).passed
 
 
 def test_country_rules():
